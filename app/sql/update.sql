@@ -186,3 +186,57 @@ CREATE TABLE IF NOT EXISTS `dnsmgr_sctask` (
   PRIMARY KEY (`id`),
   KEY `did` (`did`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE `dnsmgr_user`
+ADD COLUMN `email` varchar(128) DEFAULT NULL,
+ADD COLUMN `email_verified` tinyint(1) NOT NULL DEFAULT '0',
+ADD COLUMN `verify_token` varchar(64) DEFAULT NULL,
+ADD COLUMN `verify_sent_at` datetime DEFAULT NULL,
+ADD COLUMN `subdomain_quota` int(11) NOT NULL DEFAULT '0';
+
+ALTER TABLE `dnsmgr_user`
+ADD KEY `email` (`email`);
+
+CREATE TABLE IF NOT EXISTS `dnsmgr_subdomain_root` (
+  `id` int(11) unsigned NOT NULL auto_increment,
+  `name` varchar(255) NOT NULL,
+  `domain_id` int(11) unsigned NOT NULL,
+  `account_id` int(11) unsigned NOT NULL,
+  `ttl` int(11) NOT NULL DEFAULT '600',
+  `status` tinyint(1) NOT NULL DEFAULT '1',
+  `remark` varchar(255) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `dnsmgr_subdomain` (
+  `id` int(11) unsigned NOT NULL auto_increment,
+  `user_id` int(11) unsigned NOT NULL,
+  `root_id` int(11) unsigned NOT NULL,
+  `account_id` int(11) unsigned NOT NULL,
+  `domain_id` int(11) unsigned NOT NULL,
+  `sub_name` varchar(128) NOT NULL,
+  `full_domain` varchar(255) NOT NULL,
+  `ns_records` text NOT NULL,
+  `record_ids` text DEFAULT NULL,
+  `status` tinyint(1) NOT NULL DEFAULT '0',
+  `audit_reason` varchar(255) DEFAULT NULL,
+  `expire_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `transfer_token` varchar(64) DEFAULT NULL,
+  `transfer_expires_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_full_domain` (`full_domain`),
+  KEY `user_id` (`user_id`),
+  KEY `root_id` (`root_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO `dnsmgr_config` (`key`, `value`) VALUES
+('subdomain_auto_approve', '0'),
+('subdomain_default_days', '365'),
+('subdomain_initial_quota', '3'),
+('subdomain_enabled', '1');

@@ -1,0 +1,65 @@
+{extend name="common/layout"/}
+{block name="title"}子域模块设置{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-xs-12 col-md-8 center-block" style="float:none;">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">子域分发设置</h3>
+            </div>
+            <div class="panel-body">
+                <form id="settingsForm">
+                    <div class="form-group">
+                        <label>模块状态</label>
+                        <select class="form-control" name="enabled">
+                            <option value="1" {if $enabled=='1'}selected{/if}>启用</option>
+                            <option value="0" {if $enabled!='1'}selected{/if}>禁用</option>
+                        </select>
+                        <small class="help-block">禁用后将关闭用户注册及子域申请入口。</small>
+                    </div>
+                    <div class="form-group">
+                        <label>审核模式</label>
+                        <select class="form-control" name="auto_approve">
+                            <option value="1" {if $autoApprove=='1'}selected{/if}>自动审核</option>
+                            <option value="0" {if $autoApprove!='1'}selected{/if}>人工审核</option>
+                        </select>
+                        <small class="help-block">自动审核：提交后立即创建 NS 记录；人工审核：需管理员在后台审核。</small>
+                    </div>
+                    <div class="form-group">
+                        <label>默认有效期（天）</label>
+                        <input type="number" class="form-control" name="default_days" value="{$defaultDays|default=365}" min="0">
+                        <small class="help-block">设置 0 表示不过期，需要管理员手动维护。</small>
+                    </div>
+                    <div class="form-group">
+                        <label>新用户默认子域配额</label>
+                        <input type="number" class="form-control" name="initial_quota" value="{$initialQuota|default=0}" min="0">
+                        <small class="help-block">新注册用户分配的初始子域数量，0 表示不限制。</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> 保存设置</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="script"}
+<script src="/static/js/layer/layer.js"></script>
+<script>
+$('#settingsForm').submit(function(){
+    var data = $(this).serialize();
+    var ii = layer.load(2);
+    $.post('/subdomain/settings', data, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+    return false;
+});
+</script>
+{/block}

@@ -109,6 +109,27 @@
           <li class="{:checkIfActive('domain,record,record_log,record_batch_add,domain_add,weight,record_batch_add2,record_batch_edit2,expire_notice')}">
             <a href="/domain"><i class="fa fa-list-ul fa-fw"></i> <span>域名管理</span></a>
           </li>
+          {if request()->user['type'] eq 'user' && request()->user['level'] neq 2}
+          <li class="{:checkIfActive('index,apply,update,cancel,transfer_create,transfer_cancel,transfer_accept')}">
+            <a href="/subdomain"><i class="fa fa-sitemap fa-fw"></i> <span>子域管理</span></a>
+          </li>
+          {/if}
+          {if request()->user['level'] eq 2}
+          <li class="treeview {:checkIfActive('index,apply,update,cancel,transfer_create,transfer_cancel,transfer_accept,admin,admin_data,root_data,root_op,settings,save_settings,approve,reject,revoke,renew')}">
+            <a href="javascript:;">
+              <i class="fa fa-sitemap fa-fw"></i>
+              <span>子域分发</span>
+              <span class="pull-right-container">
+                <i class="fa fa-angle-left pull-right"></i>
+              </span>
+            </a>
+            <ul class="treeview-menu">
+              <li class="{:checkIfActive('index,apply,update,cancel,transfer_create,transfer_cancel,transfer_accept')}"><a href="/subdomain"><i class="fa fa-circle-o"></i> 我的子域</a></li>
+              <li class="{:checkIfActive('admin,admin_data,approve,reject,revoke,renew')}"><a href="/subdomain/admin"><i class="fa fa-circle-o"></i> 审核管理</a></li>
+              <li class="{:checkIfActive('settings,save_settings,root_data,root_op')}"><a href="/subdomain/settings"><i class="fa fa-circle-o"></i> 模块配置</a></li>
+            </ul>
+          </li>
+          {/if}
           {if request()->user['level'] eq 2}
           <li class="{:checkIfActive('account')}">
             <a href="/account"><i class="fa fa-lock fa-fw"></i> <span>域名账户</span></a>

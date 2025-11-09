@@ -1,0 +1,470 @@
+{extend name="common/layout"/}
+{block name="title"}子域审核管理{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-xs-12 center-block" style="float: none;">
+        <div class="nav-tabs-custom">
+            <ul class="nav nav-tabs">
+                <li class="active"><a href="#tab_subdomain" data-toggle="tab">子域列表</a></li>
+                <li><a href="#tab_root" data-toggle="tab">主域配置</a></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane active" id="tab_subdomain">
+                    <form class="form-inline" id="adminSearch" style="margin-bottom:15px;">
+                        <div class="form-group">
+                            <label for="search_status">状态</label>
+                            <select class="form-control" id="search_status" name="status">
+                                <option value="">全部</option>
+                                <option value="0">待审核</option>
+                                <option value="1">已生效</option>
+                                <option value="2">已拒绝</option>
+                                <option value="3">已过期</option>
+                                <option value="4">已注销</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="search_kw">关键字</label>
+                            <input type="text" class="form-control" id="search_kw" name="keyword" placeholder="子域/用户">
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="fa fa-search"></i> 搜索</button>
+                        <button type="button" class="btn btn-default" onclick="resetSearch()"><i class="fa fa-refresh"></i> 重置</button>
+                    </form>
+                    <table id="adminTable"></table>
+                </div>
+                <div class="tab-pane" id="tab_root">
+                    <div class="clearfix" style="margin-bottom:10px;">
+                        <button class="btn btn-success" onclick="openRootModal('add')"><i class="fa fa-plus"></i> 添加主域</button>
+                    </div>
+                    <table id="rootTable"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-reject" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">拒绝申请</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-reject">
+                    <input type="hidden" name="id" />
+                    <div class="form-group">
+                        <label>拒绝原因</label>
+                        <textarea class="form-control" name="reason" rows="3" placeholder="请填写原因"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-danger" onclick="submitReject()">确认拒绝</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-revoke" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">注销子域</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-revoke">
+                    <input type="hidden" name="id" />
+                    <div class="form-group">
+                        <label>注销原因</label>
+                        <textarea class="form-control" name="reason" rows="3" placeholder="请填写原因"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-warning" onclick="submitRevoke()">确认注销</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-renew" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">更新到期时间</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-renew">
+                    <input type="hidden" name="id" />
+                    <div class="form-group">
+                        <label>到期时间</label>
+                        <input type="datetime-local" class="form-control" name="expire_at" required>
+                        <small class="help-block">请选择新的到期时间</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="submitRenew()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-root" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="root-title">主域配置</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-root">
+                    <input type="hidden" name="id" />
+                    <div class="form-group">
+                        <label>主域名称</label>
+                        <input type="text" class="form-control" name="name" placeholder="例如 example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>关联主域</label>
+                        <select class="form-control" name="domain_id" required>
+                            <option value="">请选择</option>
+                            {foreach $domains as $domain}
+                            <option value="{$domain.id}">{$domain.name} [账号{$domain.account_id}]</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>TTL</label>
+                        <input type="number" class="form-control" name="ttl" value="600" min="60">
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select class="form-control" name="status">
+                            <option value="1">启用</option>
+                            <option value="0">禁用</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input type="text" class="form-control" name="remark" placeholder="可选">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="submitRoot()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="script"}
+<script src="/static/js/layer/layer.js"></script>
+<script src="/static/js/bootstrap-table-1.21.4.min.js"></script>
+<script src="/static/js/bootstrap-table-page-jump-to-1.21.4.min.js"></script>
+<script>
+var domainOptions = {:json_encode($domains)};
+var currentRejectId = null;
+var currentRevokeId = null;
+var currentRenewId = null;
+var currentRootAction = 'add';
+
+function resetSearch(){
+    $('#search_status').val('');
+    $('#search_kw').val('');
+    reloadAdminTable();
+}
+
+$('#adminSearch').submit(function(){
+    reloadAdminTable();
+    return false;
+});
+
+function reloadAdminTable(){
+    $('#adminTable').bootstrapTable('refresh', {pageNumber: 1});
+}
+
+function buildNsList(nsArray){
+    if(!Array.isArray(nsArray)) return '';
+    return nsArray.map(function(item){return '<div>'+item+'</div>';}).join('');
+}
+
+$(function(){
+    $('#adminTable').bootstrapTable({
+        url: '/subdomain/admin/data',
+        queryParams: function(params){
+            params.status = $('#search_status').val();
+            params.keyword = $('#search_kw').val();
+            return params;
+        },
+        classes: 'table table-striped table-bordered table-hover',
+        pageSize: 15,
+        pagination: true,
+        sidePagination: 'server',
+        columns: [
+            {field:'id', title:'ID', width:60},
+            {field:'full_domain', title:'子域'},
+            {field:'root_name', title:'主域'},
+            {field:'username', title:'申请用户'},
+            {field:'ns_records', title:'NS记录', formatter:function(value){return buildNsList(value);}},
+            {field:'status_text', title:'状态'},
+            {field:'created_at', title:'申请时间'},
+            {field:'expire_at', title:'到期时间'},
+            {
+                field:'action', title:'操作', formatter:function(value, row){
+                    var buttons = [];
+                    if(row.status == 0 || row.status == 2){
+                        buttons.push('<button class="btn btn-success btn-xs" onclick="approve('+row.id+')">审核通过</button>');
+                        buttons.push('<button class="btn btn-danger btn-xs" onclick="openReject('+row.id+')">拒绝</button>');
+                    }
+                    if(row.status == 1){
+                        buttons.push('<button class="btn btn-warning btn-xs" onclick="openRevoke('+row.id+')">注销</button>');
+                        buttons.push('<button class="btn btn-info btn-xs" onclick="openRenew('+row.id+', \''+(row.expire_at || '')+'\')">更新到期</button>');
+                    }
+                    buttons.push('<button class="btn btn-default btn-xs" onclick="showDetail('+row.id+')">详情</button>');
+                    return buttons.join(' ');
+                }
+            }
+        ]
+    });
+
+    $('#rootTable').bootstrapTable({
+        url: '/subdomain/root/data',
+        classes: 'table table-striped table-bordered table-hover',
+        pagination: false,
+        columns: [
+            {field:'id', title:'ID', width:60},
+            {field:'name', title:'主域'},
+            {field:'domain_name', title:'关联主域'},
+            {field:'ttl', title:'TTL'},
+            {field:'status', title:'状态', formatter:function(value){return value==1?'<span class="label label-success">启用</span>':'<span class="label label-default">禁用</span>'; }},
+            {field:'remark', title:'备注'},
+            {field:'created_at', title:'创建时间'},
+            {
+                field:'action', title:'操作', formatter:function(value, row){
+                    var buttons = [];
+                    buttons.push('<button class="btn btn-info btn-xs" onclick="openRootModal(\'edit\','+row.id+')">编辑</button>');
+                    buttons.push('<button class="btn btn-danger btn-xs" onclick="deleteRoot('+row.id+')">删除</button>');
+                    return buttons.join(' ');
+                }
+            }
+        ]
+    });
+});
+
+function approve(id){
+    var ii = layer.load(2);
+    $.post('/subdomain/admin/approve', {id:id}, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            reloadAdminTable();
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    },'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+}
+
+function openReject(id){
+    currentRejectId = id;
+    $('#form-reject')[0].reset();
+    $('#modal-reject').modal('show');
+}
+
+function submitReject(){
+    if(!currentRejectId) return;
+    var reason = $('#form-reject textarea[name="reason"]').val();
+    var ii = layer.load(2);
+    $.post('/subdomain/admin/reject', {id: currentRejectId, reason: reason}, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#modal-reject').modal('hide');
+            reloadAdminTable();
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+}
+
+function openRevoke(id){
+    currentRevokeId = id;
+    $('#form-revoke')[0].reset();
+    $('#modal-revoke').modal('show');
+}
+
+function submitRevoke(){
+    if(!currentRevokeId) return;
+    var reason = $('#form-revoke textarea[name="reason"]').val();
+    var ii = layer.load(2);
+    $.post('/subdomain/admin/revoke', {id: currentRevokeId, reason: reason}, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#modal-revoke').modal('hide');
+            reloadAdminTable();
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+}
+
+function openRenew(id, expire){
+    currentRenewId = id;
+    $('#form-renew')[0].reset();
+    if(expire){
+        $('#form-renew input[name="expire_at"]').val(convertDateTimeValue(expire));
+    }
+    $('#modal-renew').modal('show');
+}
+
+function submitRenew(){
+    if(!currentRenewId) return;
+    var expire = $('#form-renew input[name="expire_at"]').val();
+    if(!expire){
+        layer.msg('请选择到期时间', {icon:2});
+        return;
+    }
+    var ii = layer.load(2);
+    $.post('/subdomain/admin/renew', {id: currentRenewId, expire_at: formatToServer(expire)}, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#modal-renew').modal('hide');
+            reloadAdminTable();
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+}
+
+function openRootModal(action, id){
+    currentRootAction = action;
+    $('#form-root')[0].reset();
+    $('#form-root select[name="domain_id"]').val('');
+    if(action === 'add'){
+        $('#root-title').text('添加主域');
+        $('#form-root input[name="ttl"]').val(600);
+        $('#form-root select[name="status"]').val(1);
+    }else{
+        $('#root-title').text('编辑主域');
+        fetchRoot(id);
+    }
+    $('#modal-root').modal('show');
+}
+
+function fetchRoot(id){
+    $.post('/subdomain/root/op/act/get', {id:id}, function(res){
+        if(res.code == 0){
+            var data = res.data;
+            $('#form-root input[name="id"]').val(data.id);
+            $('#form-root input[name="name"]').val(data.name);
+            $('#form-root select[name="domain_id"]').val(data.domain_id);
+            $('#form-root input[name="ttl"]').val(data.ttl);
+            $('#form-root select[name="status"]').val(data.status);
+            $('#form-root input[name="remark"]').val(data.remark || '');
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json');
+}
+
+function submitRoot(){
+    var data = $('#form-root').serialize();
+    var action = currentRootAction === 'edit' ? 'edit' : 'add';
+    $.post('/subdomain/root/op/act/'+action, data, function(res){
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#modal-root').modal('hide');
+            $('#rootTable').bootstrapTable('refresh');
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json');
+}
+
+function deleteRoot(id){
+    var confirmobj = layer.confirm('确定要删除该主域吗？', {
+        btn: ['确定','取消']
+    }, function(){
+        var ii = layer.load(2);
+        $.post('/subdomain/root/op/act/del', {id:id}, function(res){
+            layer.close(ii);
+            if(res.code == 0){
+                layer.msg(res.msg, {icon:1});
+                $('#rootTable').bootstrapTable('refresh');
+            }else{
+                layer.alert(res.msg, {icon:2});
+            }
+        }, 'json').fail(function(){
+            layer.close(ii);
+            layer.alert('请求失败，请稍后重试', {icon:2});
+        });
+        layer.close(confirmobj);
+    }, function(){
+        layer.close(confirmobj);
+    });
+}
+
+function showDetail(id){
+    var rows = $('#adminTable').bootstrapTable('getData');
+    var row = rows.find(function(item){return item.id == id;});
+    if(!row){
+        layer.alert('未找到记录', {icon:2});
+        return;
+    }
+    var html = '<p><strong>子域：</strong>'+row.full_domain+'</p>'+
+        '<p><strong>主域：</strong>'+row.root_name+'</p>'+
+        '<p><strong>用户：</strong>'+row.username+'</p>'+
+        '<p><strong>状态：</strong>'+row.status_text+'</p>'+
+        '<p><strong>申请时间：</strong>'+row.created_at+'</p>'+
+        '<p><strong>到期时间：</strong>'+(row.expire_at || '-')+'</p>'+
+        '<p><strong>NS记录：</strong><br>'+buildNsList(row.ns_records)+'</p>';
+    layer.open({
+        type:1,
+        title:'子域详情',
+        area:['420px','auto'],
+        shadeClose:true,
+        content:'<div style="padding:20px;">'+html+'</div>'
+    });
+}
+
+function convertDateTimeValue(value){
+    if(!value) return '';
+    var date = new Date(value.replace(/-/g,'/'));
+    if(isNaN(date.getTime())) return '';
+    var pad = function(num){ return num < 10 ? '0'+num : num; };
+    return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'T'+pad(date.getHours())+':'+pad(date.getMinutes());
+}
+
+function formatToServer(value){
+    if(!value) return '';
+    if(value.indexOf('T') !== -1){
+        var parts = value.split('T');
+        var timePart = parts[1];
+        if(timePart.length <= 5){
+            timePart += ':00';
+        }
+        return parts[0] + ' ' + timePart;
+    }
+    return value;
+}
+</script>
+{/block}

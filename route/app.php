@@ -23,6 +23,11 @@ Route::any('/install', 'install/index')
 
 Route::any('/login', 'auth/login')->middleware(SessionInit::class)
 ->middleware(ViewOutput::class);
+Route::any('/register', 'auth/register')->middleware(SessionInit::class)
+->middleware(ViewOutput::class);
+Route::post('/auth/resend', 'auth/resendVerification')->middleware(SessionInit::class);
+Route::get('/verify-email', 'auth/verifyEmail')->middleware(SessionInit::class)
+->middleware(ViewOutput::class);
 Route::get('/verifycode', 'auth/verifycode')->middleware(SessionInit::class);
 Route::post('/auth/totp', 'auth/totp')->middleware(SessionInit::class);
 Route::get('/logout', 'auth/logout');
@@ -42,6 +47,26 @@ Route::group(function () {
     Route::post('/user/data', 'user/user_data');
     Route::post('/user/op', 'user/user_op');
     Route::get('/user', 'user/user');
+    
+    Route::get('/subdomain', 'subdomain/index');
+    Route::post('/subdomain/data', 'subdomain/user_data');
+    Route::post('/subdomain/apply', 'subdomain/apply');
+    Route::post('/subdomain/update', 'subdomain/update');
+    Route::post('/subdomain/cancel', 'subdomain/cancel');
+    Route::post('/subdomain/transfer/create', 'subdomain/transfer_create');
+    Route::post('/subdomain/transfer/cancel', 'subdomain/transfer_cancel');
+    Route::post('/subdomain/transfer/accept', 'subdomain/transfer_accept');
+
+    Route::get('/subdomain/admin', 'subdomain/admin');
+    Route::post('/subdomain/admin/data', 'subdomain/admin_data');
+    Route::post('/subdomain/admin/approve', 'subdomain/approve');
+    Route::post('/subdomain/admin/reject', 'subdomain/reject');
+    Route::post('/subdomain/admin/revoke', 'subdomain/revoke');
+    Route::post('/subdomain/admin/renew', 'subdomain/renew');
+    Route::post('/subdomain/root/data', 'subdomain/root_data');
+    Route::post('/subdomain/root/op', 'subdomain/root_op');
+    Route::get('/subdomain/settings', 'subdomain/settings');
+    Route::post('/subdomain/settings', 'subdomain/save_settings');
     
     Route::post('/log/data', 'user/log_data');
     Route::get('/log', 'user/log');

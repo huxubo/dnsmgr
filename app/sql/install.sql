@@ -10,6 +10,10 @@ INSERT INTO `dnsmgr_config` VALUES ('notice_mail', '0');
 INSERT INTO `dnsmgr_config` VALUES ('notice_wxtpl', '0');
 INSERT INTO `dnsmgr_config` VALUES ('mail_smtp', 'smtp.qq.com');
 INSERT INTO `dnsmgr_config` VALUES ('mail_port', '465');
+INSERT INTO `dnsmgr_config` VALUES ('subdomain_auto_approve', '0');
+INSERT INTO `dnsmgr_config` VALUES ('subdomain_default_days', '365');
+INSERT INTO `dnsmgr_config` VALUES ('subdomain_initial_quota', '3');
+INSERT INTO `dnsmgr_config` VALUES ('subdomain_enabled', '1');
 
 DROP TABLE IF EXISTS `dnsmgr_account`;
 CREATE TABLE `dnsmgr_account` (
@@ -49,6 +53,7 @@ DROP TABLE IF EXISTS `dnsmgr_user`;
 CREATE TABLE `dnsmgr_user` (
   `id` int(11) unsigned NOT NULL auto_increment,
   `username` varchar(64) NOT NULL,
+  `email` varchar(128) DEFAULT NULL,
   `password` varchar(80) NOT NULL,
   `is_api` tinyint(1) NOT NULL DEFAULT '0',
   `apikey` varchar(32) DEFAULT NULL,
@@ -58,8 +63,13 @@ CREATE TABLE `dnsmgr_user` (
   `totp_open` tinyint(1) NOT NULL DEFAULT '0',
   `totp_secret` varchar(100) DEFAULT NULL,
   `status` tinyint(1) NOT NULL DEFAULT '1',
+  `email_verified` tinyint(1) NOT NULL DEFAULT '0',
+  `verify_token` varchar(64) DEFAULT NULL,
+  `verify_sent_at` datetime DEFAULT NULL,
+  `subdomain_quota` int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
-  KEY `username` (`username`)
+  KEY `username` (`username`),
+  KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 AUTO_INCREMENT=1000;
 
 DROP TABLE IF EXISTS `dnsmgr_permission`;
@@ -253,4 +263,44 @@ CREATE TABLE `dnsmgr_sctask` (
   `remark` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `did` (`did`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `dnsmgr_subdomain_root`;
+CREATE TABLE `dnsmgr_subdomain_root` (
+  `id` int(11) unsigned NOT NULL auto_increment,
+  `name` varchar(255) NOT NULL,
+  `domain_id` int(11) unsigned NOT NULL,
+  `account_id` int(11) unsigned NOT NULL,
+  `ttl` int(11) NOT NULL DEFAULT '600',
+  `status` tinyint(1) NOT NULL DEFAULT '1',
+  `remark` varchar(255) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `dnsmgr_subdomain`;
+CREATE TABLE `dnsmgr_subdomain` (
+  `id` int(11) unsigned NOT NULL auto_increment,
+  `user_id` int(11) unsigned NOT NULL,
+  `root_id` int(11) unsigned NOT NULL,
+  `account_id` int(11) unsigned NOT NULL,
+  `domain_id` int(11) unsigned NOT NULL,
+  `sub_name` varchar(128) NOT NULL,
+  `full_domain` varchar(255) NOT NULL,
+  `ns_records` text NOT NULL,
+  `record_ids` text DEFAULT NULL,
+  `status` tinyint(1) NOT NULL DEFAULT '0',
+  `audit_reason` varchar(255) DEFAULT NULL,
+  `expire_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `transfer_token` varchar(64) DEFAULT NULL,
+  `transfer_expires_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_full_domain` (`full_domain`),
+  KEY `user_id` (`user_id`),
+  KEY `root_id` (`root_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

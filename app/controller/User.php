@@ -19,6 +19,7 @@ class User extends BaseController
             $domains[] = $row['name'];
         }
         View::assign('domains', $domains);
+        View::assign('defaultQuota', config_get('subdomain_initial_quota', 0));
         return view();
     }
 
@@ -54,6 +55,9 @@ class User extends BaseController
         } elseif ($act == 'add') {
             $username = input('post.username', null, 'trim');
             $password = input('post.password', null, 'trim');
+            $email = input('post.email', null, 'trim');
+            $email_verified = input('post.email_verified/d', 0);
+            $subdomain_quota = input('post.subdomain_quota/d', 0);
             $is_api = input('post.is_api/d');
             $apikey = input('post.apikey', null, 'trim');
             $level = input('post.level/d');
@@ -63,12 +67,23 @@ class User extends BaseController
             if ($is_api == 1 && empty($apikey)) {
                 return json(['code' => -1, 'msg' => 'API密钥不能为空']);
             }
+            if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return json(['code' => -1, 'msg' => '邮箱格式不正确']);
+            }
             if (Db::name('user')->where('username', $username)->find()) {
                 return json(['code' => -1, 'msg' => '用户名已存在']);
+            }
+            if (!empty($email) && Db::name('user')->where('email', $email)->find()) {
+                return json(['code' => -1, 'msg' => '邮箱已被使用']);
             }
             $uid = Db::name('user')->insertGetId([
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
+                'email' => $email,
+                'email_verified' => !empty($email) ? ($email_verified ? 1 : 0) : 0,
+                'verify_token' => null,
+                'verify_sent_at' => null,
+                'subdomain_quota' => $subdomain_quota,
                 'is_api' => $is_api,
                 'apikey' => $apikey,
                 'level' => $level,
@@ -91,6 +106,9 @@ class User extends BaseController
             $row = Db::name('user')->where('id', $id)->find();
             if (!$row) return json(['code' => -1, 'msg' => '用户不存在']);
             $username = input('post.username', null, 'trim');
+            $email = input('post.email', null, 'trim');
+            $email_verified = input('post.email_verified/d', 0);
+            $subdomain_quota = input('post.subdomain_quota/d', 0);
             $is_api = input('post.is_api/d');
             $apikey = input('post.apikey', null, 'trim');
             $level = input('post.level/d');
@@ -101,18 +119,33 @@ class User extends BaseController
             if ($is_api == 1 && empty($apikey)) {
                 return json(['code' => -1, 'msg' => 'API密钥不能为空']);
             }
+            if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return json(['code' => -1, 'msg' => '邮箱格式不正确']);
+            }
             if (Db::name('user')->where('username', $username)->where('id', '<>', $id)->find()) {
                 return json(['code' => -1, 'msg' => '用户名已存在']);
+            }
+            if (!empty($email) && Db::name('user')->where('email', $email)->where('id', '<>', $id)->find()) {
+                return json(['code' => -1, 'msg' => '邮箱已被使用']);
             }
             if ($level == 1 && ($id == 1000 || $id == $this->request->user['id'])) {
                 $level = 2;
             }
-            Db::name('user')->where('id', $id)->update([
+            $emailValue = $email ?: null;
+            $update = [
                 'username' => $username,
+                'email' => $emailValue,
+                'email_verified' => $emailValue ? ($email_verified ? 1 : 0) : 0,
                 'is_api' => $is_api,
                 'apikey' => $apikey,
                 'level' => $level,
-            ]);
+                'subdomain_quota' => $subdomain_quota,
+            ];
+            if (empty($emailValue) || $emailValue !== $row['email']) {
+                $update['verify_token'] = null;
+                $update['verify_sent_at'] = null;
+            }
+            Db::name('user')->where('id', $id)->update($update);
             Db::name('permission')->where(['uid' => $id])->delete();
             if ($level == 1) {
                 $permission = input('post.permission/a');

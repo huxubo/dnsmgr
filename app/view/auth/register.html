@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="renderer" content="webkit">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>聚合DNS管理系统 - 注册</title>
+  <link href="/static/css/bootstrap-3.4.1.min.css" rel="stylesheet"/>
+  <link href="/static/css/font-awesome-4.7.0.min.css" rel="stylesheet"/>
+  <link href="/static/css/app.min.css" rel="stylesheet">
+  <link href="/static/css/skins/{$skin}.css" rel="stylesheet">
+  <link href="/static/css/bootstrap-table.css" rel="stylesheet"/>
+  <script src="/static/js/jquery-3.7.1.min.js"></script>
+  <!--[if lt IE 9]>
+    <script src="/static/js/html5shiv-3.7.3.min.js"></script>
+    <script src="/static/js/respond-1.4.2.min.js"></script>
+  <![endif]-->
+<style type="text/css">
+body{color:#999;background-color:#f1f4fd;background-size:cover}
+a{color:#444}
+.login-screen{max-width:430px;padding:0;margin:100px auto 0 auto}
+.login-screen .well{border-radius:3px;-webkit-box-shadow:0 0 30px rgba(0,0,0,.1);box-shadow:0 0 30px rgba(0,0,0,.1);background:#fff;border:none;padding:0}
+@media (max-width:767px){.login-screen{padding:20px 0}}
+.profile-img-card{width:100px;height:100px;display:block;-moz-border-radius:50%;-webkit-border-radius:50%;border-radius:50%;margin:-93px auto 30px;border:5px solid #fff}
+.profile-name-card{text-align:center}
+.login-head{background:#70b0ea;border-radius:3px 3px 0 0}
+.login-form{padding:40px 30px;position:relative;z-index:99}
+#register-form{margin-top:20px}
+#register-form .input-group{margin-bottom:15px}
+#register-form .form-control{font-size:14px}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="login-wrapper">
+        <div class="login-screen">
+            <div class="well">
+                <div class="login-head">
+                    <img src="/static/images/login-head.png" style="width:100%;"/>
+                </div>
+                <div class="login-form">
+                    <img id="profile-img" class="profile-img-card" src="/static/images/user.png"/>
+                    <p id="profile-name" class="profile-name-card"></p>
+                    <form action="" id="register-form" onsubmit="return doRegister()">
+                        <div class="input-group">
+                            <div class="input-group-addon"><span class="glyphicon glyphicon-user" aria-hidden="true"></span></div>
+                            <input type="text" class="form-control" placeholder="用户名" name="username" required="required" maxlength="32"/>
+                        </div>
+                        <div class="input-group">
+                            <div class="input-group-addon"><i class="fa fa-envelope"></i></div>
+                            <input type="email" class="form-control" placeholder="邮箱" name="email" required="required"/>
+                        </div>
+                        <div class="input-group">
+                            <div class="input-group-addon"><span class="glyphicon glyphicon-lock" aria-hidden="true"></span></div>
+                            <input type="password" class="form-control" placeholder="密码（不少于8位）" name="password" required="required" minlength="8"/>
+                        </div>
+                        <div class="input-group">
+                            <div class="input-group-addon"><span class="glyphicon glyphicon-lock" aria-hidden="true"></span></div>
+                            <input type="password" class="form-control" placeholder="确认密码" name="confirm" required="required" minlength="8"/>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-success btn-lg btn-block" style="background:#5cb85c;">注 册</button>
+                        </div>
+                        <div class="text-right"><a href="/login">已有账号？返回登录</a></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/js/bootstrap-3.4.1.min.js"></script>
+<script src="/static/js/layer/layer.js"></script>
+<script>
+function doRegister(){
+    var username = $("input[name='username']").val();
+    var email = $("input[name='email']").val();
+    var password = $("input[name='password']").val();
+    var confirm = $("input[name='confirm']").val();
+    if(username === ''){
+        layer.msg('用户名不能为空', {icon: 2});
+        return false;
+    }
+    if(email === ''){
+        layer.msg('邮箱不能为空', {icon: 2});
+        return false;
+    }
+    if(password.length < 8){
+        layer.msg('密码至少需要8位', {icon: 2});
+        return false;
+    }
+    if(password !== confirm){
+        layer.msg('两次输入的密码不一致', {icon: 2});
+        return false;
+    }
+    var ii = layer.load(2);
+    $.ajax({
+        type: "POST",
+        url: "/register",
+        data: $("#register-form").serialize(),
+        dataType: 'json',
+        success: function(data){
+            layer.close(ii);
+            if(data.code == 0){
+                layer.alert(data.msg || '注册成功', {
+                    icon: 1,
+                    closeBtn: false
+                }, function(){
+                    window.location.href = '/login';
+                });
+            }else{
+                layer.alert(data.msg, {icon: 2});
+            }
+        },
+        error: function(){
+            layer.close(ii);
+            layer.alert('请求失败，请稍后重试', {icon: 2});
+        }
+    });
+    return false;
+}
+</script>
+</body>
+</html>
