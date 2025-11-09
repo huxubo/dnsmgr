@@ -371,7 +371,7 @@ function openRootModal(action, id){
 }
 
 function fetchRoot(id){
-    $.post('/subdomain/root/op/act/get', {id:id}, function(res){
+    $.post('/subdomain/root/op', {act:'get', id:id}, function(res){
         if(res.code == 0){
             var data = res.data;
             $('#form-root input[name="id"]').val(data.id);
@@ -389,7 +389,8 @@ function fetchRoot(id){
 function submitRoot(){
     var data = $('#form-root').serialize();
     var action = currentRootAction === 'edit' ? 'edit' : 'add';
-    $.post('/subdomain/root/op/act/'+action, data, function(res){
+    var payload = data ? data + '&act=' + action : 'act=' + action;
+    $.post('/subdomain/root/op', payload, function(res){
         if(res.code == 0){
             layer.msg(res.msg, {icon:1});
             $('#modal-root').modal('hide');
@@ -405,7 +406,7 @@ function deleteRoot(id){
         btn: ['确定','取消']
     }, function(){
         var ii = layer.load(2);
-        $.post('/subdomain/root/op/act/del', {id:id}, function(res){
+        $.post('/subdomain/root/op', {act:'del', id:id}, function(res){
             layer.close(ii);
             if(res.code == 0){
                 layer.msg(res.msg, {icon:1});
