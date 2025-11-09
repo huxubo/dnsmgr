@@ -1,0 +1,450 @@
+{extend name="common/layout"/}
+{block name="title"}子域管理{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-xs-12 center-block" style="float: none;">
+        <div class="panel panel-default panel-intro">
+            <div class="panel-heading">
+                <div class="panel-lead">
+                    <h3>子域管理</h3>
+                    <p>申请子域以便指向外部权威 DNS，仅支持 NS 记录。</p>
+                </div>
+                <div class="pull-right" style="margin-top:-35px;">
+                    <button class="btn btn-success" onclick="openApply()" {if $enabled!='1'}disabled title="模块已禁用"{/if}><i class="fa fa-plus"></i> 申请子域</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> 当前配额：<strong id="quotaText"></strong>，已使用：<strong id="usedText"></strong>{if $autoApprove=='1'}，系统已开启自动审核{/if}{if $enabled!='1'}，<span class="text-danger">当前模块已禁用，暂无法申请新子域</span>{/if}
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-xs-12 col-md-6">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">接受子域转移</h3>
+            </div>
+            <div class="panel-body">
+                <div class="form-inline">
+                    <div class="form-group">
+                        <label class="sr-only" for="transfer_token_input">转移码</label>
+                        <input type="text" class="form-control" id="transfer_token_input" placeholder="输入转移码">
+                    </div>
+                    <button class="btn btn-primary" onclick="acceptTransfer()">接收</button>
+                </div>
+                <p class="help-block" style="margin-top:10px;">输入对方提供的转移码即可将子域接收到当前账号。</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-apply" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title">申请子域</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-apply">
+                    <div class="form-group">
+                        <label>所属主域</label>
+                        <select class="form-control" name="root_id" required>
+                            <option value="">请选择</option>
+                            {foreach $roots as $root}
+                            <option value="{$root.id}">{$root.name} ({$root.domain_name})</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>子域前缀</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="sub_name" placeholder="例如：test" required>
+                            <span class="input-group-addon" id="apply-domain">.选择主域后自动显示</span>
+                        </div>
+                        <small class="help-block">仅支持字母、数字、连接符及子级点分形式</small>
+                    </div>
+                    <div class="form-group">
+                        <label>NS 记录</label>
+                        <textarea class="form-control" name="ns" id="apply_ns" rows="4" placeholder="每行一条 NS 记录" required></textarea>
+                        <small class="help-block">请填写完整的权威 DNS 地址，至少两条</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="submitApply()">提交申请</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-update" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title">调整 NS 记录</h4>
+            </div>
+            <div class="modal-body">
+                <form id="form-update">
+                    <input type="hidden" name="id" />
+                    <div class="form-group">
+                        <label>子域</label>
+                        <input type="text" class="form-control" name="full_domain" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>NS 记录</label>
+                        <textarea class="form-control" name="ns" id="update_ns" rows="4" required></textarea>
+                        <small class="help-block">每行一条 NS 记录，至少两条</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="submitUpdate()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-transfer" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title">子域转移</h4>
+            </div>
+            <div class="modal-body">
+                <p>将下方转移码提供给目标用户，对方可在“接受子域转移”中输入并接收。</p>
+                <div class="form-group">
+                    <label>转移码</label>
+                    <input type="text" class="form-control" id="transfer_token" readonly>
+                </div>
+                <p class="help-block">转移码有效期 24 小时，可随时重新生成。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="refreshTransferToken()">重新生成</button>
+                <button type="button" class="btn btn-warning" onclick="cancelTransferToken()">取消转移</button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="script"}
+<script src="/static/js/layer/layer.js"></script>
+<script src="/static/js/bootstrap-table-1.21.4.min.js"></script>
+<script src="/static/js/bootstrap-table-page-jump-to-1.21.4.min.js"></script>
+<script>
+var rootOptions = {:json_encode($roots)};
+var quota = {$quota|default=0};
+var used = {$used|default=0};
+var autoApprove = '{$autoApprove|default="0"}';
+var moduleEnabled = '{$enabled|default="1"}';
+var currentTransferId = null;
+
+function refreshQuota(){
+    $("#quotaText").text(quota > 0 ? quota : '不限');
+    $("#usedText").text(used);
+}
+
+function buildNsList(nsArray){
+    if(!Array.isArray(nsArray)) return '';
+    return nsArray.map(function(item){return '<div>'+item+'</div>';}).join('');
+}
+
+function openApply(){
+    $('#form-apply')[0].reset();
+    $('#apply-domain').text('.选择主域后自动显示');
+    $('#modal-apply').modal('show');
+}
+
+function submitApply(){
+    var form = $('#form-apply');
+    var rootId = form.find("select[name='root_id']").val();
+    var subName = form.find("input[name='sub_name']").val();
+    var nsText = form.find('#apply_ns').val();
+    if(!rootId){
+        layer.msg('请选择主域', {icon:2});
+        return false;
+    }
+    if(!subName){
+        layer.msg('请输入子域前缀', {icon:2});
+        return false;
+    }
+    var ns = parseNsText(nsText);
+    if(ns.length < 2){
+        layer.msg('请至少填写两条 NS 记录', {icon:2});
+        return false;
+    }
+    var ii = layer.load(2);
+    $.ajax({
+        type: 'POST',
+        url: '/subdomain/apply',
+        traditional: true,
+        data: {root_id: rootId, sub_name: subName, ns: ns},
+        dataType: 'json',
+        success: function(res){
+            layer.close(ii);
+            if(res.code == 0){
+                layer.msg(res.msg, {icon:1});
+                $('#modal-apply').modal('hide');
+                $('#subTable').bootstrapTable('refresh');
+            }else{
+                layer.alert(res.msg, {icon:2});
+            }
+        },
+        error: function(){
+            layer.close(ii);
+            layer.alert('请求失败，请稍后重试', {icon:2});
+        }
+    });
+    return false;
+}
+
+function getRowById(id){
+    var data = $('#subTable').bootstrapTable('getData');
+    for(var i=0;i<data.length;i++){
+        if(data[i].id == id){
+            return data[i];
+        }
+    }
+    return null;
+}
+
+function openUpdate(id){
+    var row = getRowById(id);
+    if(!row){
+        layer.alert('未找到记录', {icon:2});
+        return;
+    }
+    $('#form-update')[0].reset();
+    $('#form-update input[name=id]').val(row.id);
+    $('#form-update input[name=full_domain]').val(row.full_domain);
+    $('#update_ns').val((row.ns_records || []).join('\n'));
+    $('#modal-update').modal('show');
+}
+
+function submitUpdate(){
+    var form = $('#form-update');
+    var id = form.find("input[name='id']").val();
+    var nsText = form.find('#update_ns').val();
+    var ns = parseNsText(nsText);
+    if(ns.length < 2){
+        layer.msg('请至少填写两条 NS 记录', {icon:2});
+        return false;
+    }
+    var ii = layer.load(2);
+    $.ajax({
+        type: 'POST',
+        url: '/subdomain/update',
+        traditional: true,
+        data: {id: id, ns: ns},
+        dataType: 'json',
+        success: function(res){
+            layer.close(ii);
+            if(res.code == 0){
+                layer.msg(res.msg, {icon:1});
+                $('#modal-update').modal('hide');
+                $('#subTable').bootstrapTable('refresh');
+            }else{
+                layer.alert(res.msg, {icon:2});
+            }
+        },
+        error: function(){
+            layer.close(ii);
+            layer.alert('请求失败，请稍后重试', {icon:2});
+        }
+    });
+    return false;
+}
+
+function cancelSubdomain(id){
+    var confirmobj = layer.confirm('确定要取消该子域吗？', {
+        btn: ['确定','取消']
+    }, function(){
+        var ii = layer.load(2);
+        $.post('/subdomain/cancel', {id:id}, function(res){
+            layer.close(ii);
+            if(res.code == 0){
+                layer.msg(res.msg, {icon:1});
+                $('#subTable').bootstrapTable('refresh');
+            }else{
+                layer.alert(res.msg, {icon:2});
+            }
+        },'json').fail(function(){
+            layer.close(ii);
+            layer.alert('请求失败，请稍后重试', {icon:2});
+        });
+        layer.close(confirmobj);
+    }, function(){
+        layer.close(confirmobj);
+    });
+}
+
+function openTransfer(id){
+    var row = getRowById(id);
+    if(!row){
+        layer.alert('未找到记录', {icon:2});
+        return;
+    }
+    currentTransferId = row.id;
+    $('#transfer_token').val('获取中...');
+    $('#modal-transfer').modal('show');
+    generateTransferToken();
+}
+
+function generateTransferToken(){
+    if(!currentTransferId) return;
+    $.post('/subdomain/transfer/create', {id: currentTransferId}, function(res){
+        if(res.code == 0){
+            $('#transfer_token').val(res.token);
+        }else{
+            layer.alert(res.msg, {icon:2});
+            $('#transfer_token').val('获取失败');
+        }
+    }, 'json');
+}
+
+function refreshTransferToken(){
+    generateTransferToken();
+}
+
+function cancelTransferToken(){
+    if(!currentTransferId) return;
+    $.post('/subdomain/transfer/cancel', {id: currentTransferId}, function(res){
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#transfer_token').val('已取消');
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json');
+}
+
+function acceptTransfer(){
+    var token = $('#transfer_token_input').val();
+    if(token === ''){
+        layer.msg('请输入转移码', {icon:2});
+        return false;
+    }
+    var ii = layer.load(2);
+    $.post('/subdomain/transfer/accept', {token: token}, function(res){
+        layer.close(ii);
+        if(res.code == 0){
+            layer.msg(res.msg, {icon:1});
+            $('#subTable').bootstrapTable('refresh');
+        }else{
+            layer.alert(res.msg, {icon:2});
+        }
+    }, 'json').fail(function(){
+        layer.close(ii);
+        layer.alert('请求失败，请稍后重试', {icon:2});
+    });
+    return false;
+}
+
+function parseNsText(text){
+    if(!text) return [];
+    return text.split(/\n+/).map(function(item){return $.trim(item);}).filter(function(item){return item.length > 0;});
+}
+
+$(function(){
+    refreshQuota();
+    $("select[name='root_id']").change(function(){
+        var rootId = $(this).val();
+        if(!rootId){
+            $('#apply-domain').text('.选择主域后自动显示');
+            return;
+        }
+        var root = rootOptions.find(function(item){ return item.id == rootId; });
+        if(root){
+            $('#apply-domain').text('.' + root.name);
+        }
+    });
+
+    $("#subTable").bootstrapTable({
+        url: '/subdomain/data',
+        classes: 'table table-striped table-bordered table-hover',
+        pageSize: 15,
+        pageList: [15, 30, 50],
+        pagination: true,
+        sidePagination: 'server',
+        columns: [
+            {field: 'id', title: 'ID', width: 60},
+            {field: 'root_name', title: '主域'},
+            {field: 'full_domain', title: '子域'},
+            {field: 'ns_records', title: 'NS记录', formatter: function(value){ return buildNsList(value); }},
+            {field: 'status_text', title: '状态', formatter: function(value, row){
+                var cls = 'label-default';
+                switch(row.status){
+                    case 0: cls = 'label-warning'; break;
+                    case 1: cls = 'label-success'; break;
+                    case 2: cls = 'label-danger'; break;
+                    case 3: cls = 'label-default'; break;
+                    case 4: cls = 'label-default'; break;
+                }
+                return '<span class="label '+cls+'">'+value+'</span>';
+            }},
+            {field: 'expire_at', title: '到期时间'},
+            {field: 'created_at', title: '申请时间'},
+            {
+                field: 'action',
+                title: '操作',
+                formatter: function(value, row){
+                    var buttons = [];
+                    buttons.push('<button class="btn btn-info btn-xs" onclick="showDetail('+row.id+')">详情</button>');
+                    if(row.status == 1){
+                        buttons.push('<button class="btn btn-warning btn-xs" onclick="openUpdate('+row.id+')">调整NS</button>');
+                        buttons.push('<button class="btn btn-primary btn-xs" onclick="openTransfer('+row.id+')">转移</button>');
+                        buttons.push('<button class="btn btn-danger btn-xs" onclick="cancelSubdomain('+row.id+')">注销</button>');
+                    } else if(row.status == 0){
+                        buttons.push('<button class="btn btn-danger btn-xs" onclick="cancelSubdomain('+row.id+')">撤回</button>');
+                    }
+                    return buttons.join(' ');
+                }
+            }
+        ]
+    });
+
+    $("#subTable").on('load-success.bs.table', function (e, data) {
+        if(data && typeof data.used !== 'undefined'){
+            used = data.used;
+            refreshQuota();
+        }
+    });
+});
+
+function showDetail(id){
+    var row = getRowById(id);
+    if(!row){
+        layer.alert('未找到记录', {icon:2});
+        return;
+    }
+    var html = '<p><strong>子域：</strong>'+row.full_domain+'</p>'+
+        '<p><strong>主域：</strong>'+row.root_name+'</p>'+
+        '<p><strong>状态：</strong>'+row.status_text+'</p>'+
+        '<p><strong>申请时间：</strong>'+row.created_at+'</p>'+
+        '<p><strong>到期时间：</strong>'+(row.expire_at || '-')+'</p>'+
+        '<p><strong>NS记录：</strong><br>'+buildNsList(row.ns_records)+'</p>';
+    layer.open({
+        type: 1,
+        title: '子域详情',
+        area: ['420px','auto'],
+        shadeClose: true,
+        content: '<div style="padding:20px;">'+html+'</div>'
+    });
+}
+</script>
+{/block}

@@ -3,6 +3,7 @@
 namespace app\controller;
 
 use app\BaseController;
+use app\utils\MsgNotice;
 use Exception;
 use think\facade\Db;
 
@@ -36,8 +37,14 @@ class Auth extends BaseController
                 }
             }
             $user = Db::name('user')->where('username', $username)->find();
+            if (!$user && filter_var($username, FILTER_VALIDATE_EMAIL)) {
+                $user = Db::name('user')->where('email', $username)->find();
+            }
             if ($user && password_verify($password, $user['password'])) {
                 if ($user['status'] == 0) return json(['code' => -1, 'msg' => '此用户已被封禁', 'vcode' => 1]);
+                if (!empty($user['email']) && intval($user['email_verified']) !== 1) {
+                    return json(['code' => -1, 'msg' => '邮箱未验证，请先完成邮箱验证', 'need_verify' => 1, 'email' => $user['email'], 'vcode' => 1]);
+                }
                 if (isset($user['totp_open']) && $user['totp_open'] == 1 && !empty($user['totp_secret'])) {
                     session('pre_login_user', $user['id']);
                     if (file_exists($login_limit_file)) {
@@ -73,6 +80,151 @@ class Auth extends BaseController
         }
 
         return view();
+    }
+
+    public function register()
+    {
+        if ($this->request->islogin) {
+            return redirect('/');
+        }
+        if (config_get('subdomain_enabled', '1') !== '1') {
+            if ($this->request->isAjax()) {
+                return json(['code' => -1, 'msg' => '当前未开放注册']);
+            }
+            return $this->alert('error', '当前未开放注册', '/login');
+        }
+
+        if ($this->request->isAjax()) {
+            $username = input('post.username', null, 'trim');
+            $email = input('post.email', null, 'trim');
+            $password = input('post.password', null, 'trim');
+            $confirm = input('post.confirm', null, 'trim');
+
+            if (empty($username) || empty($email) || empty($password) || empty($confirm)) {
+                return json(['code' => -1, 'msg' => '请完整填写注册信息']);
+            }
+            if (!preg_match('/^[A-Za-z0-9_]{3,32}$/', $username)) {
+                return json(['code' => -1, 'msg' => '用户名需为3-32位字母、数字或下划线']);
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return json(['code' => -1, 'msg' => '邮箱格式不正确']);
+            }
+            if (strlen($password) < 8) {
+                return json(['code' => -1, 'msg' => '密码至少需要8位']);
+            }
+            if ($password !== $confirm) {
+                return json(['code' => -1, 'msg' => '两次输入的密码不一致']);
+            }
+            if (Db::name('user')->where('username', $username)->find()) {
+                return json(['code' => -1, 'msg' => '用户名已存在']);
+            }
+            if (Db::name('user')->where('email', $email)->find()) {
+                return json(['code' => -1, 'msg' => '邮箱已被使用']);
+            }
+
+            $quota = intval(config_get('subdomain_initial_quota', 0));
+            $now = date('Y-m-d H:i:s');
+
+            Db::startTrans();
+            try {
+                $uid = Db::name('user')->insertGetId([
+                    'username' => $username,
+                    'email' => $email,
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                    'is_api' => 0,
+                    'apikey' => null,
+                    'level' => 1,
+                    'regtime' => $now,
+                    'lasttime' => null,
+                    'totp_open' => 0,
+                    'totp_secret' => null,
+                    'status' => 1,
+                    'email_verified' => 0,
+                    'verify_token' => null,
+                    'verify_sent_at' => null,
+                    'subdomain_quota' => $quota,
+                ]);
+                Db::name('log')->insert([
+                    'uid' => $uid,
+                    'action' => '用户注册',
+                    'data' => 'IP:' . $this->clientip,
+                    'addtime' => $now,
+                ]);
+                Db::commit();
+            } catch (Exception $e) {
+                Db::rollback();
+                return json(['code' => -1, 'msg' => '注册失败，' . $e->getMessage()]);
+            }
+
+            $user = Db::name('user')->where('id', $uid)->find();
+            $mailResult = $this->sendVerificationEmail($user);
+            if ($mailResult === true) {
+                return json(['code' => 0, 'msg' => '注册成功，验证邮件已发送，请查收']);
+            }
+            return json(['code' => 0, 'msg' => '注册成功，但邮件发送失败：' . $mailResult]);
+        }
+
+        return view();
+    }
+
+    public function resendVerification()
+    {
+        if (!$this->request->isAjax()) {
+            return json(['code' => -1, 'msg' => '不支持的请求方式']);
+        }
+        $account = input('post.account', null, 'trim');
+        if (empty($account)) {
+            return json(['code' => -1, 'msg' => '请输入邮箱或用户名']);
+        }
+        $user = Db::name('user')->where('email', $account)->find();
+        if (!$user) {
+            $user = Db::name('user')->where('username', $account)->find();
+        }
+        if (!$user) {
+            return json(['code' => -1, 'msg' => '未找到对应的用户']);
+        }
+        if (empty($user['email'])) {
+            return json(['code' => -1, 'msg' => '该用户未绑定邮箱']);
+        }
+        if (intval($user['email_verified']) === 1) {
+            return json(['code' => -1, 'msg' => '该邮箱已完成验证']);
+        }
+        if (!empty($user['verify_sent_at']) && strtotime($user['verify_sent_at']) > time() - 300) {
+            return json(['code' => -1, 'msg' => '请稍后再试，验证邮件发送频率不得少于5分钟']);
+        }
+
+        $result = $this->sendVerificationEmail($user);
+        if ($result === true) {
+            return json(['code' => 0, 'msg' => '验证邮件已重新发送']);
+        }
+        return json(['code' => -1, 'msg' => '邮件发送失败：' . $result]);
+    }
+
+    public function verifyEmail()
+    {
+        $token = input('get.token', null, 'trim');
+        if (empty($token)) {
+            return $this->alert('error', '验证链接无效', '/login');
+        }
+        $user = Db::name('user')->where('verify_token', $token)->find();
+        if (!$user) {
+            return $this->alert('error', '验证链接已失效或用户不存在', '/login');
+        }
+        if (intval($user['email_verified']) === 1) {
+            return $this->alert('success', '邮箱已完成验证，请登录', '/login');
+        }
+        Db::name('user')->where('id', $user['id'])->update([
+            'email_verified' => 1,
+            'verify_token' => null,
+            'verify_sent_at' => null,
+        ]);
+        Db::name('log')->insert([
+            'uid' => $user['id'],
+            'action' => '邮箱验证',
+            'data' => 'IP:' . $this->clientip,
+            'addtime' => date('Y-m-d H:i:s'),
+        ]);
+        return $this->alert('success', '邮箱验证成功，请登录', '/login');
     }
 
     public function totp()
@@ -150,6 +302,27 @@ class Auth extends BaseController
         $expiretime = time() + 2562000;
         $token = authcode("domain\t{$row['id']}\t{$session}\t{$expiretime}", 'ENCODE', config_get('sys_key'));
         cookie('user_token', $token, ['expire' => $expiretime, 'httponly' => true]);
+    }
+
+    private function sendVerificationEmail(array $user)
+    {
+        if (empty($user['email'])) {
+            return '未设置邮箱地址';
+        }
+        $token = getSid();
+        $now = date('Y-m-d H:i:s');
+        Db::name('user')->where('id', $user['id'])->update([
+            'verify_token' => $token,
+            'verify_sent_at' => $now,
+        ]);
+        $verifyUrl = $this->request->root(true) . '/verify-email?token=' . urlencode($token);
+        $subject = '邮箱验证通知';
+        $content = '尊敬的用户，您好：<br/>请点击以下链接完成邮箱验证：<br/><a href="' . $verifyUrl . '">' . $verifyUrl . '</a><br/><br/>如果无法点击，请将链接复制到浏览器打开。<br/><br/>本次验证请求来自 IP：' . $this->clientip . '<br/>时间：' . $now;
+        $result = MsgNotice::send_mail($user['email'], $subject, $content);
+        if ($result === true) {
+            return true;
+        }
+        return is_string($result) ? $result : '邮件发送失败';
     }
 
     public function verifycode()

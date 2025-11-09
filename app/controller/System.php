@@ -11,6 +11,7 @@ use app\service\OptimizeService;
 use app\service\CertTaskService;
 use app\service\ExpireNoticeService;
 use app\service\ScheduleService;
+use app\service\SubdomainService;
 
 class System extends BaseController
 {
@@ -144,6 +145,7 @@ class System extends BaseController
             (new CertTaskService())->execute();
             (new ExpireNoticeService())->task();
         }
+        (new SubdomainService())->execute();
         echo 'success!';
     }
 }
